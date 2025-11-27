@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Heart, MapPin } from "lucide-react";
@@ -38,10 +39,12 @@ export const ListingCard = ({
           {/* Image - Square on left */}
           <div className="relative w-32 sm:w-56 lg:w-64 aspect-square sm:aspect-[4/3] bg-muted overflow-hidden flex-shrink-0">
             {image ? (
-              <img
+              <Image
                 src={image}
                 alt={title}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                fill
+                className="object-cover group-hover:scale-105 transition-transform duration-500"
+                sizes="(max-width: 640px) 8rem, (max-width: 1024px) 14rem, 16rem"
               />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
@@ -49,21 +52,23 @@ export const ListingCard = ({
               </div>
             )}
           </div>
-          
+
           {/* Content */}
           <div className="flex-1 p-3 sm:p-5 flex flex-col justify-between min-w-0">
             <div className="flex items-start justify-between gap-2 mb-1">
               <div className="flex-1 min-w-0">
                 {/* Price first */}
                 <p className="text-lg sm:text-2xl lg:text-3xl font-bold text-foreground mb-1">
-                  {price === 0 ? "Gratis" : `${price.toLocaleString("sv-SE")} kr`}
+                  {price === 0
+                    ? "Gratis"
+                    : `${price.toLocaleString("sv-SE")} kr`}
                 </p>
                 {/* Title */}
                 <h3 className="text-sm sm:text-base font-normal text-foreground/90 line-clamp-2 mb-2 group-hover:text-primary transition-colors">
                   {title}
                 </h3>
               </div>
-              
+
               {/* Heart button */}
               <Button
                 size="icon"
@@ -77,12 +82,14 @@ export const ListingCard = ({
                 <Heart className="h-5 w-5" />
               </Button>
             </div>
-            
+
             {/* Location and time at bottom */}
             <div className="flex items-center justify-between gap-2 text-xs sm:text-sm text-muted-foreground mt-auto">
               <span className="truncate">{location}</span>
               <span className="whitespace-nowrap flex-shrink-0">
-                {daysAgo === 0 ? "Idag" : `${daysAgo} dag${daysAgo > 1 ? "ar" : ""} sedan`}
+                {daysAgo === 0
+                  ? "Idag"
+                  : `${daysAgo} dag${daysAgo > 1 ? "ar" : ""} sedan`}
               </span>
             </div>
           </div>
@@ -96,10 +103,12 @@ export const ListingCard = ({
       <Link href={`/annonser/${id}`}>
         <div className="relative aspect-[4/3] bg-muted overflow-hidden">
           {image ? (
-            <img
+            <Image
               src={image}
               alt={title}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              fill
+              className="object-cover group-hover:scale-105 transition-transform duration-300"
+              sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 25vw"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-muted-foreground">
@@ -109,7 +118,7 @@ export const ListingCard = ({
           <Button
             size="icon"
             variant="ghost"
-            className="absolute top-2 right-2 bg-white/90 hover:bg-white"
+            className="absolute top-2 right-2 bg-white/90 hover:scale-110 hover:bg-primary/10 hover:text-primary"
             onClick={(e) => {
               e.preventDefault();
               // Toggle favorite
@@ -119,7 +128,7 @@ export const ListingCard = ({
           </Button>
         </div>
       </Link>
-      
+
       <CardContent className="p-4">
         <Link href={`/annonser/${id}`}>
           <h3 className="font-semibold text-lg mb-2 line-clamp-2 group-hover:text-primary transition-colors">
@@ -141,7 +150,9 @@ export const ListingCard = ({
               <span className="truncate">{location}</span>
             </div>
             <span className="text-xs whitespace-nowrap ml-2">
-              {daysAgo === 0 ? "Idag" : `${daysAgo} dag${daysAgo > 1 ? "ar" : ""} sedan`}
+              {daysAgo === 0
+                ? "Idag"
+                : `${daysAgo} dag${daysAgo > 1 ? "ar" : ""} sedan`}
             </span>
           </div>
         </Link>

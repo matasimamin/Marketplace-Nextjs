@@ -10,16 +10,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Search, SlidersHorizontal, LayoutGrid, List } from "lucide-react";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 
 export default function ListingsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [priceRange, setPriceRange] = useState([0, 50000]);
   const [sortBy, setSortBy] = useState("latest");
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  const [viewMode, setViewMode] = useState<"grid" | "list">(isMobile ? "list" : "grid");
+  const [viewMode, setViewMode] = useState<"grid" | "list">(
+    isMobile ? "list" : "grid"
+  );
 
   const { data: listings = [], isLoading } = useQuery({
     queryKey: ["listings", searchQuery, sortBy],
@@ -79,7 +94,9 @@ export default function ListingsPage() {
               <SheetContent>
                 <SheetHeader>
                   <SheetTitle>Filtrera annonser</SheetTitle>
-                  <SheetDescription>Anpassa din sökning med filter nedan</SheetDescription>
+                  <SheetDescription>
+                    Anpassa din sökning med filter nedan
+                  </SheetDescription>
                 </SheetHeader>
                 <div className="mt-6 space-y-6">
                   <div>
@@ -100,7 +117,13 @@ export default function ListingsPage() {
                   <div>
                     <Label>Prisintervall (kr)</Label>
                     <div className="mt-4">
-                      <Slider value={priceRange} onValueChange={setPriceRange} max={50000} step={500} className="mb-2" />
+                      <Slider
+                        value={priceRange}
+                        onValueChange={setPriceRange}
+                        max={50000}
+                        step={500}
+                        className="mb-2"
+                      />
                       <div className="flex justify-between text-sm text-muted-foreground">
                         <span>{priceRange[0].toLocaleString("sv-SE")} kr</span>
                         <span>{priceRange[1].toLocaleString("sv-SE")} kr</span>
@@ -110,7 +133,10 @@ export default function ListingsPage() {
 
                   <div>
                     <Label>Plats</Label>
-                    <Input placeholder="Stad eller postnummer" className="mt-2" />
+                    <Input
+                      placeholder="Stad eller postnummer"
+                      className="mt-2"
+                    />
                   </div>
 
                   <div>
@@ -136,10 +162,14 @@ export default function ListingsPage() {
 
         <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
           <p className="text-muted-foreground text-sm sm:text-base">
-            Visar <span className="font-semibold text-foreground">{listings.length}</span> annonser
+            Visar{" "}
+            <span className="font-semibold text-foreground">
+              {listings.length}
+            </span>{" "}
+            annonser
           </p>
           <div className="flex items-center gap-2 sm:gap-3">
-            <div className="hidden md:flex border rounded-lg p-1 bg-muted/50">
+            <div className="hidden md:flex border rounded-lg p-1 bg-muted/50 gap-1">
               <Button
                 variant={viewMode === "grid" ? "secondary" : "ghost"}
                 size="sm"
@@ -188,7 +218,9 @@ export default function ListingsPage() {
           </div>
         ) : listings.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-xl text-muted-foreground">Inga annonser hittades</p>
+            <p className="text-xl text-muted-foreground">
+              Inga annonser hittades
+            </p>
             <p className="text-sm text-muted-foreground mt-2">
               Prova att ändra dina sökfilter eller skapa en ny annons
             </p>
@@ -199,15 +231,19 @@ export default function ListingsPage() {
               typeof window !== "undefined" && window.innerWidth < 768
                 ? "flex flex-col gap-3"
                 : viewMode === "grid"
-                  ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
-                  : "flex flex-col gap-3 sm:gap-4"
+                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
+                : "flex flex-col gap-3 sm:gap-4"
             }
           >
             {listings.map((listing) => (
               <ListingCard
                 key={listing.id}
                 {...listing}
-                viewMode={typeof window !== "undefined" && window.innerWidth < 768 ? "list" : viewMode}
+                viewMode={
+                  typeof window !== "undefined" && window.innerWidth < 768
+                    ? "list"
+                    : viewMode
+                }
               />
             ))}
           </div>

@@ -39,13 +39,22 @@ export const Header = () => {
           </Link>
 
           <nav className="hidden md:flex items-center space-x-6">
-            <Link href="/annonser" className="text-foreground hover:text-primary transition-colors">
+            <Link
+              href="/annonser"
+              className="text-foreground hover:text-primary transition-colors"
+            >
               Alla annonser
             </Link>
-            <Link href="/kategorier" className="text-foreground hover:text-primary transition-colors">
+            <Link
+              href="/kategorier"
+              className="text-foreground hover:text-primary transition-colors"
+            >
               Kategorier
             </Link>
-            <Link href="/hjalp" className="text-foreground hover:text-primary transition-colors">
+            <Link
+              href="/hjalp"
+              className="text-foreground hover:text-primary transition-colors"
+            >
               Hjälp
             </Link>
           </nav>
@@ -54,20 +63,34 @@ export const Header = () => {
             <ThemeToggle />
             {user ? (
               <>
-                <Button variant="ghost" size="icon" asChild className="hidden md:flex">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className="hidden md:flex"
+                >
                   <Link href="/konto/favoriter">
                     <Heart className="h-5 w-5" />
                   </Link>
                 </Button>
-                <Button variant="ghost" size="icon" asChild className="hidden md:flex">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  asChild
+                  className="hidden md:flex"
+                >
                   <Link href="/konto/meddelanden">
                     <MessageSquare className="h-5 w-5" />
                   </Link>
                 </Button>
-                
+
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="rounded-full">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="rounded-full"
+                    >
                       <Avatar className="h-8 w-8">
                         <AvatarFallback className="bg-primary text-primary-foreground">
                           {getInitials(user.user_metadata?.name)}
@@ -78,8 +101,12 @@ export const Header = () => {
                   <DropdownMenuContent align="end" className="w-56">
                     <DropdownMenuLabel>
                       <div className="flex flex-col">
-                        <span className="font-medium">{user.user_metadata?.name || "Användare"}</span>
-                        <span className="text-xs text-muted-foreground">{user.email}</span>
+                        <span className="font-medium">
+                          {user.user_metadata?.name || "Användare"}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {user.email}
+                        </span>
                       </div>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
@@ -96,14 +123,20 @@ export const Header = () => {
                       <Link href="/konto/meddelanden">Meddelanden</Link>
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => signOut()} className="text-destructive">
+                    <DropdownMenuItem
+                      onClick={() => signOut()}
+                      className="text-destructive"
+                    >
                       <LogOut className="h-4 w-4 mr-2" />
                       Logga ut
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
-                <Button asChild className="bg-gradient-primary hover:opacity-90 transition-opacity hidden md:flex">
+                <Button
+                  asChild
+                  className="bg-gradient-primary hover:opacity-90 transition-opacity hidden md:flex"
+                >
                   <Link href="/skapa-annons">
                     <Plus className="h-4 w-4 mr-2" />
                     <span className="hidden lg:inline">Lägg upp annons</span>
@@ -114,12 +147,16 @@ export const Header = () => {
             ) : (
               <>
                 <Button variant="ghost" asChild className="hidden sm:flex">
-                  <Link href="/logga-in">
-                    Logga in
-                  </Link>
+                  <Link href="/logga-in">Logga in</Link>
                 </Button>
-                <Button asChild className="bg-gradient-primary hover:opacity-90 transition-opacity hidden md:flex">
-                  <Link href="/logga-in?redirect=/skapa-annons" className="flex items-center">
+                <Button
+                  asChild
+                  className="bg-gradient-primary hover:opacity-90 transition-opacity hidden md:flex"
+                >
+                  <Link
+                    href="/logga-in?redirect=/skapa-annons"
+                    className="flex items-center"
+                  >
                     <Plus className="h-4 w-4 mr-2" />
                     <span className="hidden lg:inline">Lägg upp annons</span>
                   </Link>
