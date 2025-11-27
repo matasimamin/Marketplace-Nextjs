@@ -19,6 +19,11 @@ import {
   Flag,
   ChevronLeft,
   ChevronRight,
+  Pause,
+  Play,
+  Trash2,
+  Pencil,
+  Phone,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -34,8 +39,14 @@ export default function ListingDetailPage() {
   const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [isCreatingThread, setIsCreatingThread] = useState(false);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const { data: listing, isLoading } = useQuery({
+  const {
+    data: listing,
+    isLoading,
+    refetch,
+  } = useQuery({
     queryKey: ["listing", listingId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -47,6 +58,9 @@ export default function ListingDetailPage() {
             path
           ),
           profiles (
+            first_name,
+            last_name,
+            phone,
             name,
             avatar_url,
             account_type
@@ -62,12 +76,15 @@ export default function ListingDetailPage() {
     enabled: !!listingId,
   });
 
-  const listingImagePaths =
-    ((listing?.listing_images as { path: string }[]) ?? []).map((img) => img.path);
+  const listingImagePaths = (
+    (listing?.listing_images as { path: string }[]) ?? []
+  ).map((img) => img.path);
   const fallbackImages = listing?.images ?? [];
   const images =
     listingImagePaths.length > 0
-      ? listingImagePaths.map((path) => getPublicImageUrl(path, { width: 1280, quality: 80 }))
+      ? listingImagePaths.map((path) =>
+          getPublicImageUrl(path, { width: 1280, quality: 80 })
+        )
       : fallbackImages;
 
   useEffect(() => {
@@ -115,6 +132,40 @@ export default function ListingDetailPage() {
     );
   }
 
+  const isOwner = !!user && user.id === listing.seller_id;
+
+  if (!isOwner && listing.status !== "active") {
+    return (
+      <div className="min-h-screen bg-background pb-20 md:pb-0">
+        <Header />
+        <div className="container mx-auto px-4 py-8">
+          <Button variant="ghost" onClick={() => router.push("/annonser")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Tillbaka till annonser
+          </Button>
+          <div className="text-center mt-12">
+            <h1 className="text-2xl font-bold mb-4">Annonsen är inte tillgänglig</h1>
+            <p className="text-muted-foreground">
+              Den här annonsen är inte längre aktiv.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const sellerProfile = listing.profiles as typeof listing.profiles & {
+    first_name?: string | null;
+    last_name?: string | null;
+    phone?: string | null;
+  };
+  const sellerName =
+    [sellerProfile?.first_name, sellerProfile?.last_name]
+      .filter(Boolean)
+      .join(" ") ||
+    sellerProfile?.name ||
+    "Anonym";
+  const sellerPhone = sellerProfile?.phone;
   const createdDate = new Date(listing.created_at);
   const daysAgo = Math.floor(
     (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
@@ -130,6 +181,85 @@ export default function ListingDetailPage() {
   const showPrevImage = () => {
     if (!hasMultipleImages) return;
     setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  };
+
+  const handleEditListing = () => {
+    if (!listing) return;
+    router.push(`/skapa-annons?listingId=${listing.id}`);
+  };
+
+  const handleToggleListingStatus = async () => {
+    if (!listing || !isOwner) return;
+    const nextStatus = listing.status === "paused" ? "active" : "paused";
+
+    setIsUpdatingStatus(true);
+
+    try {
+      const { error } = await supabase
+        .from("listings")
+        .update({ status: nextStatus })
+        .eq("id", listing.id)
+        .eq("seller_id", user?.id);
+
+      if (error) throw error;
+
+      toast.success(
+        nextStatus === "paused" ? "Annons pausad" : "Annons aktiverad",
+        {
+          description:
+            nextStatus === "paused"
+              ? "Din annons är nu pausad och visas inte för köpare."
+              : "Din annons är aktiv igen.",
+        }
+      );
+
+      await refetch();
+    } catch (error) {
+      console.error("Error updating listing status", error);
+      toast.error("Kunde inte uppdatera annonsstatus", {
+        description: "Försök igen senare",
+      });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  const handleDeleteListing = async () => {
+    if (!listing || !isOwner) return;
+
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        "Är du säker på att du vill ta bort annonsen?"
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setIsDeleting(true);
+
+    try {
+      const { error } = await supabase
+        .from("listings")
+        .delete()
+        .eq("id", listing.id)
+        .eq("seller_id", user?.id);
+
+      if (error) throw error;
+
+      toast.success("Annons borttagen", {
+        description: "Din annons har tagits bort permanent.",
+      });
+
+      router.push("/konto/dina-annonser");
+    } catch (error) {
+      console.error("Error deleting listing", error);
+      toast.error("Kunde inte ta bort annonsen", {
+        description: "Försök igen senare",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleContactSeller = async () => {
@@ -340,26 +470,79 @@ export default function ListingDetailPage() {
                       </span>
                     </div>
                   )}
-                  <div>
-                    <p className="font-semibold">
-                      {listing.profiles.name || "Anonym"}
-                    </p>
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-semibold">{sellerName}</p>
+                    </div>
                     {listing.profiles.account_type === "business" && (
-                      <Badge variant="secondary" className="text-xs">
+                      <Badge variant="secondary" className="text-xs mt-1">
                         Företag
                       </Badge>
                     )}
                   </div>
                 </div>
-                <Button
-                  className="w-full mt-4"
-                  onClick={handleContactSeller}
-                  disabled={isCreatingThread}
-                >
-                  {isCreatingThread
-                    ? "Startar konversation..."
-                    : "Kontakta säljare"}
-                </Button>
+                {isOwner ? (
+                  <div className="grid grid-cols-3 gap-2 mt-4">
+                    <Button
+                      variant="outline"
+                      onClick={handleEditListing}
+                      disabled={isDeleting || isUpdatingStatus}
+                      className="justify-start gap-2"
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Redigera annons
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={handleToggleListingStatus}
+                      disabled={isUpdatingStatus || isDeleting}
+                      className="justify-start gap-2"
+                    >
+                      {listing.status === "paused" ? (
+                        <Play className="h-4 w-4" />
+                      ) : (
+                        <Pause className="h-4 w-4" />
+                      )}
+                      {isUpdatingStatus
+                        ? "Uppdaterar..."
+                        : listing.status === "paused"
+                        ? "Aktivera annons"
+                        : "Pausa annons"}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      onClick={handleDeleteListing}
+                      disabled={isDeleting}
+                      className="justify-start gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      {isDeleting ? "Tar bort..." : "Ta bort annons"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex  gap-2">
+                    <Button
+                      className="w-1/2 mt-4"
+                      onClick={handleContactSeller}
+                      disabled={isCreatingThread}
+                    >
+                      {isCreatingThread
+                        ? "Startar konversation..."
+                        : "Kontakta säljare"}
+                    </Button>
+                    {sellerPhone && (
+                      <Button asChild className="px-3 gap-2 w-1/2 mt-4">
+                        <a
+                          href={`tel:${sellerPhone}`}
+                          aria-label="Ring säljaren"
+                        >
+                          <Phone className="h-4 w-4" />
+                          {sellerPhone}
+                        </a>
+                      </Button>
+                    )}
+                  </div>
+                )}
               </Card>
             )}
           </div>
