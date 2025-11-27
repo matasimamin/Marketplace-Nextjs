@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ListingCard } from "@/components/ListingCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { getPublicImageUrl } from "@/utils/uploadImage";
 
 export default function FavoritesPage() {
   const { user } = useAuth();
@@ -19,7 +20,12 @@ export default function FavoritesPage() {
         .select(
           `
           *,
-          listings (*)
+          listings (
+            *,
+            listing_images (
+              path
+            )
+          )
         `,
         )
         .eq("user_id", user?.id);
@@ -45,18 +51,29 @@ export default function FavoritesPage() {
             </div>
           ) : favorites && favorites.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {favorites.map((favorite: any) => (
-                <ListingCard
-                  key={favorite.id}
-                  id={favorite.listings.id}
-                  title={favorite.listings.title}
-                  price={favorite.listings.price || 0}
-                  location={favorite.listings.location_text || ""}
-                  image={favorite.listings.images?.[0]}
-                  createdAt={favorite.listings.created_at}
-                  condition={favorite.listings.condition}
-                />
-              ))}
+              {favorites.map((favorite: any) => {
+                const listingImages =
+                  favorite.listings?.listing_images?.map((img: { path: string }) => img.path) ?? [];
+                const primaryPath = listingImages[0];
+                const fallbackImage = favorite.listings?.images?.[0];
+
+                return (
+                  <ListingCard
+                    key={favorite.id}
+                    id={favorite.listings.id}
+                    title={favorite.listings.title}
+                    price={favorite.listings.price || 0}
+                    location={favorite.listings.location_text || ""}
+                    image={
+                      primaryPath
+                        ? getPublicImageUrl(primaryPath, { width: 400, quality: 80 })
+                        : fallbackImage
+                    }
+                    createdAt={favorite.listings.created_at}
+                    condition={favorite.listings.condition}
+                  />
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-12">

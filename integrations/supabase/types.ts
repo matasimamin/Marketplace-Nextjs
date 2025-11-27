@@ -184,6 +184,35 @@ export type Database = {
           },
         ]
       }
+      listing_images: {
+        Row: {
+          id: string
+          inserted_at: string | null
+          listing_id: string
+          path: string
+        }
+        Insert: {
+          id?: string
+          inserted_at?: string | null
+          listing_id: string
+          path: string
+        }
+        Update: {
+          id?: string
+          inserted_at?: string | null
+          listing_id?: string
+          path?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "listing_images_listing_id_fkey"
+            columns: ["listing_id"]
+            isOneToOne: false
+            referencedRelation: "listings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           body: string

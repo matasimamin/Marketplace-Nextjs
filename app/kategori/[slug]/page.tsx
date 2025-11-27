@@ -8,6 +8,7 @@ import { ListingCard } from "@/components/ListingCard";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { getPublicImageUrl } from "@/utils/uploadImage";
 
 export default function CategoryPage() {
   const params = useParams<{ slug: string }>();
@@ -34,6 +35,9 @@ export default function CategoryPage() {
         .select(
           `
           *,
+          listing_images (
+            path
+          ),
           profiles (
             name,
             avatar_url
@@ -112,17 +116,28 @@ export default function CategoryPage() {
               {listings.length} {listings.length === 1 ? "annons" : "annonser"}
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {listings.map((listing) => (
-                <ListingCard
-                  key={listing.id}
-                  id={listing.id}
-                  title={listing.title}
-                  price={listing.price}
-                  location={listing.location_text || "Plats ej angiven"}
-                  image={listing.images?.[0]}
-                  createdAt={listing.created_at}
-                />
-              ))}
+              {listings.map((listing: any) => {
+                const imagePaths =
+                  listing.listing_images?.map((img: { path: string }) => img.path) ?? [];
+                const primaryPath = imagePaths[0];
+                const fallbackImage = listing.images?.[0];
+
+                return (
+                  <ListingCard
+                    key={listing.id}
+                    id={listing.id}
+                    title={listing.title}
+                    price={listing.price}
+                    location={listing.location_text || "Plats ej angiven"}
+                    image={
+                      primaryPath
+                        ? getPublicImageUrl(primaryPath, { width: 800, quality: 80 })
+                        : fallbackImage
+                    }
+                    createdAt={listing.created_at}
+                  />
+                );
+              })}
             </div>
           </>
         ) : (

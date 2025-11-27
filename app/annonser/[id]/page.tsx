@@ -24,6 +24,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { getPublicImageUrl } from "@/utils/uploadImage";
 
 export default function ListingDetailPage() {
   const params = useParams<{ id: string }>();
@@ -42,6 +43,9 @@ export default function ListingDetailPage() {
         .select(
           `
           *,
+          listing_images (
+            path
+          ),
           profiles (
             name,
             avatar_url,
@@ -58,11 +62,19 @@ export default function ListingDetailPage() {
     enabled: !!listingId,
   });
 
+  const listingImagePaths =
+    ((listing?.listing_images as { path: string }[]) ?? []).map((img) => img.path);
+  const fallbackImages = listing?.images ?? [];
+  const images =
+    listingImagePaths.length > 0
+      ? listingImagePaths.map((path) => getPublicImageUrl(path, { width: 1280, quality: 80 }))
+      : fallbackImages;
+
   useEffect(() => {
-    if (listing?.images?.length) {
+    if (images.length) {
       setSelectedImageIndex(0);
     }
-  }, [listing?.images?.length]);
+  }, [images.length]);
 
   if (isLoading) {
     return (
@@ -107,7 +119,6 @@ export default function ListingDetailPage() {
   const daysAgo = Math.floor(
     (Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24)
   );
-  const images = listing.images ?? [];
   const hasImages = images.length > 0;
   const hasMultipleImages = images.length > 1;
 

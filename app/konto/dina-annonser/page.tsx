@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { NavLink } from "@/components/NavLink";
 import { Plus } from "lucide-react";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { getPublicImageUrl } from "@/utils/uploadImage";
 
 export default function MyListingsPage() {
   const { user } = useAuth();
@@ -17,9 +18,20 @@ export default function MyListingsPage() {
   const { data: listings, isLoading } = useQuery({
     queryKey: ["my-listings", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("listings").select("*").eq("seller_id", user?.id).order("created_at", {
-        ascending: false,
-      });
+      const { data, error } = await supabase
+        .from("listings")
+        .select(
+          `
+          *,
+          listing_images (
+            path
+          )
+        `
+        )
+        .eq("seller_id", user?.id)
+        .order("created_at", {
+          ascending: false,
+        });
 
       if (error) throw error;
       return data;
@@ -50,18 +62,29 @@ export default function MyListingsPage() {
             </div>
           ) : listings && listings.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {listings.map((listing) => (
-                <ListingCard
-                  key={listing.id}
-                  id={listing.id}
-                  title={listing.title}
-                  price={listing.price || 0}
-                  location={listing.location_text || ""}
-                  image={listing.images?.[0]}
-                  createdAt={listing.created_at}
-                  condition={listing.condition}
-                />
-              ))}
+              {listings.map((listing: any) => {
+                const imagePaths =
+                  listing.listing_images?.map((img: { path: string }) => img.path) ?? [];
+                const primaryPath = imagePaths[0];
+                const fallbackImage = listing.images?.[0];
+
+                return (
+                  <ListingCard
+                    key={listing.id}
+                    id={listing.id}
+                    title={listing.title}
+                    price={listing.price || 0}
+                    location={listing.location_text || ""}
+                    image={
+                      primaryPath
+                        ? getPublicImageUrl(primaryPath, { width: 400, quality: 80 })
+                        : fallbackImage
+                    }
+                    createdAt={listing.created_at}
+                    condition={listing.condition}
+                  />
+                );
+              })}
             </div>
           ) : (
             <div className="text-center py-12">

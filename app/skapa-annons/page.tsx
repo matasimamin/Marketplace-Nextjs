@@ -15,11 +15,13 @@ import { Upload, X } from "lucide-react";
 import { toast } from "sonner";
 import { swedishRegions } from "@/data/locations";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { uploadImage } from "@/utils/uploadImage";
 
 export default function CreateListingPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [images, setImages] = useState<string[]>([]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [selectedRegion, setSelectedRegion] = useState<string>("");
@@ -52,6 +54,12 @@ export default function CreateListingPage() {
     fetchCategories();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      imagePreviews.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [imagePreviews]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -67,6 +75,8 @@ export default function CreateListingPage() {
 
     setLoading(true);
 
+    let newListingId: string | null = null;
+
     try {
       const locationText =
         selectedCity && selectedCity !== "region_all" ? `${selectedCity}, ${selectedRegion}` : selectedRegion;
@@ -79,7 +89,7 @@ export default function CreateListingPage() {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "");
 
-      const { error } = await supabase
+      const { data: newListing, error } = await supabase
         .from("listings")
         .insert({
           seller_id: user.id,
@@ -93,18 +103,36 @@ export default function CreateListingPage() {
           location_text: locationText,
           region: selectedRegion,
           municipality: selectedCity && selectedCity !== "region_all" ? selectedCity : null,
-          images: images,
+          images: null,
           status: "active",
         } as any)
         .select()
         .single();
 
       if (error) throw error;
+      newListingId = newListing.id;
+
+      if (imageFiles.length > 0) {
+        const uploadedPaths = await Promise.all(
+          imageFiles.map((file) => uploadImage(file, `listings/${newListingId}`))
+        );
+
+        const { error: imagesError } = await supabase.from("listing_images").insert(
+          uploadedPaths.map((path) => ({
+            listing_id: newListingId,
+            path,
+          }))
+        );
+
+        if (imagesError) throw imagesError;
+      }
 
       toast.success("Annons skapad!", {
         description: "Din annons är nu publicerad och kan ses av andra användare.",
       });
 
+      setImageFiles([]);
+      setImagePreviews([]);
       router.push("/konto/dina-annonser");
     } catch (error: any) {
       toast.error("Kunde inte skapa annons", {
@@ -117,14 +145,34 @@ export default function CreateListingPage() {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (files) {
-      const newImages = Array.from(files).map((file) => URL.createObjectURL(file));
-      setImages([...images, ...newImages]);
+    if (!files || files.length === 0) {
+      return;
     }
+
+    if (imageFiles.length >= 8) {
+      toast.error("Du kan max ladda upp 8 bilder.");
+      return;
+    }
+
+    const remainingSlots = 8 - imageFiles.length;
+    const filesToStore = Array.from(files).slice(0, remainingSlots);
+    const previews = filesToStore.map((file) => URL.createObjectURL(file));
+
+    setImageFiles((prev) => [...prev, ...filesToStore]);
+    setImagePreviews((prev) => [...prev, ...previews]);
+    e.target.value = "";
   };
 
   const removeImage = (index: number) => {
-    setImages(images.filter((_, i) => i !== index));
+    setImageFiles((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => {
+      const updated = [...prev];
+      const [removed] = updated.splice(index, 1);
+      if (removed) {
+        URL.revokeObjectURL(removed);
+      }
+      return updated;
+    });
   };
 
   return (
@@ -142,10 +190,10 @@ export default function CreateListingPage() {
             <Card>
               <CardContent className="pt-6">
                 <Label className="text-lg font-semibold">Bilder</Label>
-                <p className="text-sm text-muted-foreground mb-4">Lägg till upp till 15 bilder. Första bilden blir huvudbild.</p>
+                <p className="text-sm text-muted-foreground mb-4">Lägg till upp till 8 bilder. Första bilden blir huvudbild.</p>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  {images.map((image, index) => (
+                  {imagePreviews.map((image, index) => (
                     <div key={index} className="relative aspect-square rounded-lg overflow-hidden group">
                       <img src={image} alt={`Upload ${index + 1}`} className="w-full h-full object-cover" />
                       <button
@@ -158,11 +206,17 @@ export default function CreateListingPage() {
                     </div>
                   ))}
 
-                  {images.length < 15 && (
+                  {imageFiles.length < 8 && (
                     <label className="aspect-square border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors">
                       <Upload className="h-8 w-8 text-muted-foreground mb-2" />
                       <span className="text-sm text-muted-foreground">Lägg till bild</span>
-                      <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={handleImageUpload}
+                        className="hidden"
+                      />
                     </label>
                   )}
                 </div>

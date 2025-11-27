@@ -26,6 +26,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { getPublicImageUrl } from "@/utils/uploadImage";
 
 export default function ListingsPage() {
   const [searchQuery, setSearchQuery] = useState("");
@@ -39,7 +40,17 @@ export default function ListingsPage() {
   const { data: listings = [], isLoading } = useQuery({
     queryKey: ["listings", searchQuery, sortBy],
     queryFn: async () => {
-      let query = supabase.from("listings").select("*").eq("status", "active");
+      let query = supabase
+        .from("listings")
+        .select(
+          `
+          *,
+          listing_images (
+            path
+          )
+        `
+        )
+        .eq("status", "active");
 
       if (searchQuery) {
         query = query.ilike("title", `%${searchQuery}%`);
@@ -56,15 +67,24 @@ export default function ListingsPage() {
       const { data, error } = await query;
       if (error) throw error;
 
-      return data.map((listing) => ({
-        id: listing.id,
-        title: listing.title,
-        price: listing.price || 0,
-        location: listing.location_text || "",
-        image: listing.images?.[0] || "",
-        createdAt: listing.created_at,
-        condition: listing.condition,
-      }));
+      return (data ?? []).map((listing: any) => {
+        const imagePaths =
+          listing.listing_images?.map((img: { path: string }) => img.path) ?? [];
+        const primaryPath = imagePaths[0];
+        const fallbackImage = listing.images?.[0] || "";
+
+        return {
+          id: listing.id,
+          title: listing.title,
+          price: listing.price || 0,
+          location: listing.location_text || "",
+          image: primaryPath
+            ? getPublicImageUrl(primaryPath, { width: 800, quality: 80 })
+            : fallbackImage,
+          createdAt: listing.created_at,
+          condition: listing.condition,
+        };
+      });
     },
   });
 
