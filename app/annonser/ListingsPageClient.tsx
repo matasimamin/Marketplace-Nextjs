@@ -91,21 +91,21 @@ export function ListingsPageClient({
   const [sortBy, setSortBy] = useState<ListingsSortOption>("latest");
   const [currentPage, setCurrentPage] = useState(initialPage);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [isMobileView, setIsMobileView] = useState(false);
+  const [isMobileView, setIsMobileView] = useState<boolean | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
 
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+
   useEffect(() => {
-    const updateView = () => {
-      const mobile = window.innerWidth < 768;
-      setIsMobileView(mobile);
-      setViewMode((prev) => (mobile ? "list" : prev));
+    const update = () => {
+      if (typeof window === "undefined") return;
+      setIsMobileView(window.innerWidth < 640);
     };
 
-    updateView();
-    window.addEventListener("resize", updateView);
-    return () => window.removeEventListener("resize", updateView);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
-  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   useEffect(() => {
     const normalizedQuery = initialSearchQuery.trim();
@@ -224,7 +224,7 @@ export function ListingsPageClient({
           totalCount: initialTotalCount,
         }
       : undefined,
-    enabled: !isMobileView,
+    enabled: isMobileView !== true,
   });
 
   const infiniteQuery = useInfiniteQuery<
@@ -260,7 +260,7 @@ export function ListingsPageClient({
       }
       return lastPage.page + 1;
     },
-    enabled: isMobileView,
+    enabled: isMobileView === true,
     initialData: isDefaultMobileQuery
       ? {
           pageParams: [initialPage],
@@ -275,12 +275,13 @@ export function ListingsPageClient({
       : undefined,
   });
 
-  const listings = isMobileView
+  const useInfinite = isMobileView === true;
+  const listings = useInfinite
     ? infiniteQuery.data?.pages.flatMap((page) => page.listings) ??
       (isDefaultMobileQuery ? initialListings : [])
     : paginatedData?.listings ?? [];
 
-  const totalCount = isMobileView
+  const totalCount = useInfinite
     ? infiniteQuery.data?.pages?.[0]?.totalCount ??
       (isDefaultMobileQuery ? initialTotalCount : 0)
     : paginatedData?.totalCount ?? 0;
@@ -289,12 +290,12 @@ export function ListingsPageClient({
   const startItem =
     totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalCount);
-  const isLoading = isMobileView
+  const isLoading = useInfinite
     ? infiniteQuery.status === "loading" && listings.length === 0
     : isPaginatedLoading;
   const isFetchingNextPage =
-    isMobileView && infiniteQuery.isFetchingNextPage ? true : false;
-  const hasNextPage = isMobileView ? Boolean(infiniteQuery.hasNextPage) : false;
+    useInfinite && infiniteQuery.isFetchingNextPage ? true : false;
+  const hasNextPage = useInfinite ? Boolean(infiniteQuery.hasNextPage) : false;
   const fetchNextInfinitePage = infiniteQuery.fetchNextPage;
 
   const paginationPages = useMemo(() => {
@@ -365,7 +366,7 @@ export function ListingsPageClient({
   };
 
   useEffect(() => {
-    if (!isMobileView || !hasNextPage) {
+    if (!useInfinite || !hasNextPage) {
       return;
     }
 
@@ -386,7 +387,7 @@ export function ListingsPageClient({
 
     observer.observe(target);
     return () => observer.disconnect();
-  }, [isMobileView, hasNextPage, isFetchingNextPage, fetchNextInfinitePage]);
+  }, [useInfinite, hasNextPage, isFetchingNextPage, fetchNextInfinitePage]);
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
@@ -573,7 +574,7 @@ export function ListingsPageClient({
           <p className="text-muted-foreground text-sm sm:text-base">
             Visar{" "}
             <span className="font-semibold text-foreground">
-              {isMobileView
+              {useInfinite
                 ? listings.length
                 : totalCount === 0
                   ? 0
@@ -647,26 +648,22 @@ export function ListingsPageClient({
         ) : (
           <div
             className={
-              isMobileView
-                ? "flex flex-col gap-3"
-                : viewMode === "grid"
-                  ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
-                  : "flex flex-col gap-3 sm:gap-4"
+              viewMode === "grid"
+                ? "flex flex-col gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 sm:gap-6"
+                : "flex flex-col gap-3 sm:gap-4"
             }
           >
             {listings.map((listing) => (
               <ListingCard
                 key={listing.id}
                 {...listing}
-                viewMode={
-                  isMobileView ? "list" : viewMode
-                }
+                viewMode={viewMode}
               />
             ))}
           </div>
         )}
 
-        {isMobileView && listings.length > 0 && (
+        {useInfinite && listings.length > 0 && (
           <div
             ref={loadMoreRef}
             className="mt-8 flex justify-center text-sm text-muted-foreground"
@@ -679,7 +676,7 @@ export function ListingsPageClient({
           </div>
         )}
 
-        {!isMobileView && totalPages > 1 && (
+        {!useInfinite && totalPages > 1 && (
           <div className="mt-12 flex justify-center">
             <div className="flex items-center gap-2">
               <Button
