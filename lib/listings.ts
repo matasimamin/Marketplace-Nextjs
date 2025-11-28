@@ -18,6 +18,12 @@ export interface FetchListingsOptions {
   sortBy?: ListingsSortOption;
   page?: number;
   limit?: number;
+  region?: string;
+  city?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  categoryId?: string;
+  condition?: string;
 }
 
 export interface ListingsResult {
@@ -32,6 +38,12 @@ export async function fetchListings({
   sortBy = "latest",
   page = 1,
   limit = DEFAULT_LIMIT,
+  region,
+  city,
+  minPrice,
+  maxPrice,
+  categoryId,
+  condition,
 }: FetchListingsOptions = {}): Promise<ListingsResult> {
   const safePage = Number.isFinite(page) && page > 0 ? page : 1;
   const safeLimit = Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_LIMIT;
@@ -53,6 +65,30 @@ export async function fetchListings({
 
   if (searchQuery) {
     query = query.ilike("title", `%${searchQuery}%`);
+  }
+
+  if (region) {
+    query = query.eq("region", region);
+  }
+
+  if (city) {
+    query = query.eq("municipality", city);
+  }
+
+  if (typeof minPrice === "number" && !Number.isNaN(minPrice)) {
+    query = query.gte("price", minPrice);
+  }
+
+  if (typeof maxPrice === "number" && !Number.isNaN(maxPrice)) {
+    query = query.lte("price", maxPrice);
+  }
+
+  if (categoryId) {
+    query = query.eq("category_id", categoryId);
+  }
+
+  if (condition) {
+    query = query.eq("condition", condition);
   }
 
   if (sortBy === "latest") {

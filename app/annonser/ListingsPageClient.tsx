@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/Header";
 import { ListingCard } from "@/components/ListingCard";
@@ -26,44 +26,177 @@ import {
 } from "@/components/ui/sheet";
 import { Search, SlidersHorizontal, LayoutGrid, List } from "lucide-react";
 import { fetchListings, type ListingPreview, type ListingsResult, type ListingsSortOption } from "@/lib/listings";
+import { supabase } from "@/integrations/supabase/client";
+import { swedishRegions } from "@/data/locations";
 
 type ListingsPageClientProps = {
   initialListings: ListingPreview[];
   initialTotalCount: number;
   initialPage?: number;
   pageSize?: number;
+  initialSearchQuery?: string;
+  initialRegion?: string;
+  initialCity?: string;
 };
 
 const DEFAULT_PAGE_SIZE = 30;
+const PRICE_RANGE_MIN = 0;
+const PRICE_RANGE_MAX = 50000;
+
+type FilterValues = {
+  category: string;
+  condition: string;
+  region: string;
+  city: string;
+  priceRange: [number, number];
+};
+
+const createDefaultFilters = (overrides: Partial<FilterValues> = {}): FilterValues => ({
+  category: "all",
+  condition: "all",
+  region: "",
+  city: "",
+  priceRange: [PRICE_RANGE_MIN, PRICE_RANGE_MAX],
+  ...overrides,
+});
 
 export function ListingsPageClient({
   initialListings,
   initialTotalCount,
   initialPage = 1,
   pageSize = DEFAULT_PAGE_SIZE,
+  initialSearchQuery = "",
+  initialRegion = "",
+  initialCity = "",
 }: ListingsPageClientProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [priceRange, setPriceRange] = useState([0, 50000]);
+  const normalizedInitialQuery = initialSearchQuery.trim();
+  const normalizedInitialRegion = initialRegion || "";
+  const normalizedInitialCity = initialCity || "";
+  const [searchInput, setSearchInput] = useState(normalizedInitialQuery);
+  const [searchQuery, setSearchQuery] = useState(normalizedInitialQuery);
+  const [regionFilter, setRegionFilter] = useState(normalizedInitialRegion);
+  const [cityFilter, setCityFilter] = useState(normalizedInitialCity);
+  const [filterValues, setFilterValues] = useState<FilterValues>(() =>
+    createDefaultFilters({
+      region: normalizedInitialRegion || "",
+      city: normalizedInitialCity || "",
+    })
+  );
+  const [appliedFilters, setAppliedFilters] = useState<FilterValues>(() =>
+    createDefaultFilters({
+      region: normalizedInitialRegion || "",
+      city: normalizedInitialCity || "",
+    })
+  );
   const [sortBy, setSortBy] = useState<ListingsSortOption>("latest");
   const [currentPage, setCurrentPage] = useState(initialPage);
   const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
   const [viewMode, setViewMode] = useState<"grid" | "list">(
     isMobile ? "list" : "grid"
   );
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
+
+  useEffect(() => {
+    const normalizedQuery = initialSearchQuery.trim();
+    setSearchInput((prev) => (prev === normalizedQuery ? prev : normalizedQuery));
+    setSearchQuery((prev) => (prev === normalizedQuery ? prev : normalizedQuery));
+  }, [initialSearchQuery]);
+
+  useEffect(() => {
+    setRegionFilter((prev) => (prev === normalizedInitialRegion ? prev : normalizedInitialRegion));
+  }, [normalizedInitialRegion]);
+
+  useEffect(() => {
+    setCityFilter((prev) => (prev === normalizedInitialCity ? prev : normalizedInitialCity));
+  }, [normalizedInitialCity]);
+
+  useEffect(() => {
+    setFilterValues((prev) => ({
+      ...prev,
+      region: normalizedInitialRegion || "",
+      city: normalizedInitialCity || "",
+    }));
+    setAppliedFilters((prev) => ({
+      ...prev,
+      region: normalizedInitialRegion || "",
+      city: normalizedInitialCity || "",
+    }));
+  }, [normalizedInitialRegion, normalizedInitialCity]);
+
+  const appliedMinPrice =
+    appliedFilters.priceRange[0] > PRICE_RANGE_MIN
+      ? appliedFilters.priceRange[0]
+      : undefined;
+  const appliedMaxPrice =
+    appliedFilters.priceRange[1] < PRICE_RANGE_MAX
+      ? appliedFilters.priceRange[1]
+      : undefined;
+  const appliedCategory =
+    appliedFilters.category && appliedFilters.category !== "all"
+      ? appliedFilters.category
+      : undefined;
+  const appliedCondition =
+    appliedFilters.condition && appliedFilters.condition !== "all"
+      ? appliedFilters.condition
+      : undefined;
+  const filtersAreDefault =
+    !appliedCategory &&
+    !appliedCondition &&
+    !appliedMinPrice &&
+    !appliedMaxPrice;
+
+  const { data: categories } = useQuery({
+    queryKey: ["categories"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("categories")
+        .select("id, name")
+        .order("name");
+
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+
+  const selectedRegion = filterValues.region;
+  const regionCities =
+    selectedRegion && selectedRegion !== "all"
+      ? swedishRegions.find((region) => region.name === selectedRegion)?.cities || []
+      : [];
 
   const isDefaultQuery =
-    searchQuery === "" &&
+    searchQuery === normalizedInitialQuery &&
     sortBy === "latest" &&
-    currentPage === initialPage;
+    currentPage === initialPage &&
+    regionFilter === normalizedInitialRegion &&
+    cityFilter === normalizedInitialCity &&
+    filtersAreDefault;
 
   const { data, isLoading } = useQuery<ListingsResult>({
-    queryKey: ["listings", searchQuery, sortBy, currentPage],
+    queryKey: [
+      "listings",
+      searchQuery,
+      sortBy,
+      currentPage,
+      regionFilter,
+      cityFilter,
+      appliedCategory,
+      appliedCondition,
+      appliedFilters.priceRange[0],
+      appliedFilters.priceRange[1],
+    ],
     queryFn: () =>
       fetchListings({
         searchQuery,
         sortBy,
         page: currentPage,
         limit: pageSize,
+        region: regionFilter || undefined,
+        city: cityFilter || undefined,
+        minPrice: appliedMinPrice,
+        maxPrice: appliedMaxPrice,
+        categoryId: appliedCategory,
+        condition: appliedCondition,
       }),
     initialData: isDefaultQuery
       ? {
@@ -100,12 +233,42 @@ export function ListingsPageClient({
   }, [currentPage, totalPages]);
 
   const handleSearchChange = (value: string) => {
-    setSearchQuery(value);
+    setSearchInput(value);
+  };
+
+  const handleSearchSubmit = (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
     setCurrentPage(1);
+    setSearchQuery(searchInput.trim());
   };
 
   const handleSortChange = (value: ListingsSortOption) => {
     setSortBy(value);
+    setCurrentPage(1);
+  };
+
+  const handleApplyFilters = () => {
+    const normalizedRegion =
+      filterValues.region === "all" ? "" : filterValues.region;
+    const normalizedCity =
+      filterValues.city === "region_all" ? "" : filterValues.city;
+
+    setRegionFilter(normalizedRegion);
+    setCityFilter(normalizedRegion && normalizedCity ? normalizedCity : "");
+    setAppliedFilters({
+      ...filterValues,
+      priceRange: [...filterValues.priceRange] as [number, number],
+    });
+    setCurrentPage(1);
+    setIsFilterSheetOpen(false);
+  };
+
+  const handleResetFilters = () => {
+    const defaults = createDefaultFilters();
+    setFilterValues(defaults);
+    setAppliedFilters(defaults);
+    setRegionFilter("");
+    setCityFilter("");
     setCurrentPage(1);
   };
 
@@ -122,90 +285,179 @@ export function ListingsPageClient({
 
       <main className="container mx-auto px-4 py-8 max-w-full overflow-x-hidden">
         <div className="mb-8">
-          <div className="flex gap-4">
-            <div className="flex-1 relative">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex flex-col gap-4 md:flex-row md:items-center"
+          >
+            <div className="flex-1 relative w-full">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 placeholder="Sök bland annonser..."
-                value={searchQuery}
+                value={searchInput}
                 onChange={(e) => handleSearchChange(e.target.value)}
                 className="pl-10 h-12"
               />
             </div>
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="lg" className="gap-2">
-                  <SlidersHorizontal className="h-5 w-5" />
-                  Filter
-                </Button>
-              </SheetTrigger>
-              <SheetContent>
-                <SheetHeader>
-                  <SheetTitle>Filtrera annonser</SheetTitle>
-                  <SheetDescription>
-                    Anpassa din sökning med filter nedan
-                  </SheetDescription>
-                </SheetHeader>
-                <div className="mt-6 space-y-6">
-                  <div>
-                    <Label>Kategori</Label>
-                    <Select>
-                      <SelectTrigger className="mt-2">
-                        <SelectValue placeholder="Välj kategori" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Alla kategorier</SelectItem>
-                        <SelectItem value="fordon">Fordon</SelectItem>
-                        <SelectItem value="elektronik">Elektronik</SelectItem>
-                        <SelectItem value="hem">Hem & Trädgård</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+            <div className="flex gap-2 w-full md:w-auto">
+              <Button
+                type="submit"
+                size="lg"
+                className="flex-1 md:flex-none gap-2"
+              >
+                <Search className="h-5 w-5" />
+                Sök
+              </Button>
+              <Sheet open={isFilterSheetOpen} onOpenChange={setIsFilterSheetOpen}>
+                <SheetTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    className="gap-2"
+                  >
+                    <SlidersHorizontal className="h-5 w-5" />
+                    Filter
+                  </Button>
+                </SheetTrigger>
+                <SheetContent>
+                  <SheetHeader>
+                    <SheetTitle>Filtrera annonser</SheetTitle>
+                    <SheetDescription>
+                      Anpassa din sökning med filter nedan
+                    </SheetDescription>
+                  </SheetHeader>
+                  <div className="mt-6 space-y-6">
+                    <div>
+                      <Label>Kategori</Label>
+                      <Select
+                        value={filterValues.category}
+                        onValueChange={(value) =>
+                          setFilterValues((prev) => ({ ...prev, category: value }))
+                        }
+                      >
+                        <SelectTrigger className="mt-2">
+                          <SelectValue placeholder="Välj kategori" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Alla kategorier</SelectItem>
+                          {categories?.map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
+                              {category.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  <div>
-                    <Label>Prisintervall (kr)</Label>
-                    <div className="mt-4">
-                      <Slider
-                        value={priceRange}
-                        onValueChange={setPriceRange}
-                        max={50000}
-                        step={500}
-                        className="mb-2"
-                      />
-                      <div className="flex justify-between text-sm text-muted-foreground">
-                        <span>{priceRange[0].toLocaleString("sv-SE")} kr</span>
-                        <span>{priceRange[1].toLocaleString("sv-SE")} kr</span>
+                    <div>
+                      <Label>Prisintervall (kr)</Label>
+                      <div className="mt-4">
+                        <Slider
+                          value={filterValues.priceRange}
+                          onValueChange={(value) =>
+                            setFilterValues((prev) => ({
+                              ...prev,
+                              priceRange: [value[0], value[1]] as [number, number],
+                            }))
+                          }
+                          max={PRICE_RANGE_MAX}
+                          step={500}
+                          className="mb-2"
+                        />
+                        <div className="flex justify-between text-sm text-muted-foreground">
+                          <span>{filterValues.priceRange[0].toLocaleString("sv-SE")} kr</span>
+                          <span>{filterValues.priceRange[1].toLocaleString("sv-SE")} kr</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div>
-                    <Label>Plats</Label>
-                    <Input
-                      placeholder="Stad eller postnummer"
-                      className="mt-2"
-                    />
-                  </div>
+                    <div>
+                      <Label>Region</Label>
+                      <Select
+                        value={filterValues.region}
+                        onValueChange={(value) =>
+                          setFilterValues((prev) => ({
+                            ...prev,
+                            region: value,
+                            city: "",
+                          }))
+                        }
+                      >
+                        <SelectTrigger className="mt-2">
+                          <SelectValue placeholder="Välj region" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px] bg-background">
+                          <SelectItem value="all">Hela Sverige</SelectItem>
+                          {swedishRegions.map((region) => (
+                            <SelectItem key={region.name} value={region.name}>
+                              {region.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                  <div>
-                    <Label>Skick</Label>
-                    <Select>
-                      <SelectTrigger className="mt-2">
-                        <SelectValue placeholder="Välj skick" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Alla</SelectItem>
-                        <SelectItem value="new">Ny</SelectItem>
-                        <SelectItem value="used">Begagnad</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                    {filterValues.region && filterValues.region !== "all" && (
+                      <div>
+                        <Label>Stad</Label>
+                        <Select
+                          value={filterValues.city}
+                          onValueChange={(value) =>
+                            setFilterValues((prev) => ({ ...prev, city: value }))
+                          }
+                        >
+                          <SelectTrigger className="mt-2">
+                            <SelectValue placeholder={`Välj stad i ${filterValues.region}`} />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[300px] bg-background">
+                            <SelectItem value="region_all">Hela {filterValues.region}</SelectItem>
+                            {regionCities.map((city) => (
+                              <SelectItem key={city} value={city}>
+                                {city}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
-                  <Button className="w-full">Tillämpa filter</Button>
-                </div>
-              </SheetContent>
-            </Sheet>
-          </div>
+                    <div>
+                      <Label>Skick</Label>
+                      <Select
+                        value={filterValues.condition}
+                        onValueChange={(value) =>
+                          setFilterValues((prev) => ({ ...prev, condition: value }))
+                        }
+                      >
+                        <SelectTrigger className="mt-2">
+                          <SelectValue placeholder="Välj skick" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Alla</SelectItem>
+                          <SelectItem value="new">Ny</SelectItem>
+                          <SelectItem value="used">Begagnad</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="flex flex-col gap-2">
+                      <Button type="button" className="w-full" onClick={handleApplyFilters}>
+                        Tillämpa filter
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="w-full"
+                        onClick={handleResetFilters}
+                      >
+                        Återställ filter
+                      </Button>
+                    </div>
+                  </div>
+                </SheetContent>
+              </Sheet>
+            </div>
+          </form>
         </div>
 
         <div className="flex items-center justify-between gap-3 mb-4 sm:mb-6">
