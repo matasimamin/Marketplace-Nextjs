@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { Header } from "@/components/Header";
 import { ListingCard } from "@/components/ListingCard";
 import { Button } from "@/components/ui/button";
@@ -90,10 +90,21 @@ export function ListingsPageClient({
   );
   const [sortBy, setSortBy] = useState<ListingsSortOption>("latest");
   const [currentPage, setCurrentPage] = useState(initialPage);
-  const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
-  const [viewMode, setViewMode] = useState<"grid" | "list">(
-    isMobile ? "list" : "grid"
-  );
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [isMobileView, setIsMobileView] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const updateView = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobileView(mobile);
+      setViewMode((prev) => (mobile ? "list" : prev));
+    };
+
+    updateView();
+    window.addEventListener("resize", updateView);
+    return () => window.removeEventListener("resize", updateView);
+  }, []);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   useEffect(() => {
@@ -171,20 +182,29 @@ export function ListingsPageClient({
     regionFilter === normalizedInitialRegion &&
     cityFilter === normalizedInitialCity &&
     filtersAreDefault;
+  const isDefaultMobileQuery =
+    searchQuery === normalizedInitialQuery &&
+    sortBy === "latest" &&
+    regionFilter === normalizedInitialRegion &&
+    cityFilter === normalizedInitialCity &&
+    filtersAreDefault;
 
-  const { data, isLoading } = useQuery<ListingsResult>({
-    queryKey: [
-      "listings",
-      searchQuery,
-      sortBy,
-      currentPage,
-      regionFilter,
-      cityFilter,
-      appliedCategory,
-      appliedCondition,
-      appliedFilters.priceRange[0],
-      appliedFilters.priceRange[1],
-    ],
+  const sharedQueryKey = [
+    searchQuery,
+    sortBy,
+    regionFilter,
+    cityFilter,
+    appliedCategory,
+    appliedCondition,
+    appliedFilters.priceRange[0],
+    appliedFilters.priceRange[1],
+  ] as const;
+
+  const {
+    data: paginatedData,
+    isLoading: isPaginatedLoading,
+  } = useQuery<ListingsResult>({
+    queryKey: ["listings", ...sharedQueryKey, currentPage],
     queryFn: () =>
       fetchListings({
         searchQuery,
@@ -204,13 +224,78 @@ export function ListingsPageClient({
           totalCount: initialTotalCount,
         }
       : undefined,
+    enabled: !isMobileView,
   });
 
-  const listings = data?.listings ?? [];
-  const totalCount = data?.totalCount ?? 0;
+  const infiniteQuery = useInfiniteQuery<
+    ListingsResult & { page: number }
+  >({
+    queryKey: ["listings-infinite", ...sharedQueryKey],
+    queryFn: async ({ pageParam = initialPage }) => {
+      const result = await fetchListings({
+        searchQuery,
+        sortBy,
+        page: pageParam,
+        limit: pageSize,
+        region: regionFilter || undefined,
+        city: cityFilter || undefined,
+        minPrice: appliedMinPrice,
+        maxPrice: appliedMaxPrice,
+        categoryId: appliedCategory,
+        condition: appliedCondition,
+      });
+      return {
+        ...result,
+        page: pageParam,
+      };
+    },
+    initialPageParam: initialPage,
+    getNextPageParam: (lastPage, pages) => {
+      const loaded = pages.reduce(
+        (acc, page) => acc + page.listings.length,
+        0
+      );
+      if (loaded >= lastPage.totalCount) {
+        return undefined;
+      }
+      return lastPage.page + 1;
+    },
+    enabled: isMobileView,
+    initialData: isDefaultMobileQuery
+      ? {
+          pageParams: [initialPage],
+          pages: [
+            {
+              listings: initialListings,
+              totalCount: initialTotalCount,
+              page: initialPage,
+            },
+          ],
+        }
+      : undefined,
+  });
+
+  const listings = isMobileView
+    ? infiniteQuery.data?.pages.flatMap((page) => page.listings) ??
+      (isDefaultMobileQuery ? initialListings : [])
+    : paginatedData?.listings ?? [];
+
+  const totalCount = isMobileView
+    ? infiniteQuery.data?.pages?.[0]?.totalCount ??
+      (isDefaultMobileQuery ? initialTotalCount : 0)
+    : paginatedData?.totalCount ?? 0;
+
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
-  const startItem = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const startItem =
+    totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endItem = Math.min(currentPage * pageSize, totalCount);
+  const isLoading = isMobileView
+    ? infiniteQuery.status === "loading" && listings.length === 0
+    : isPaginatedLoading;
+  const isFetchingNextPage =
+    isMobileView && infiniteQuery.isFetchingNextPage ? true : false;
+  const hasNextPage = isMobileView ? Boolean(infiniteQuery.hasNextPage) : false;
+  const fetchNextInfinitePage = infiniteQuery.fetchNextPage;
 
   const paginationPages = useMemo(() => {
     const pages: number[] = [];
@@ -278,6 +363,30 @@ export function ListingsPageClient({
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
+
+  useEffect(() => {
+    if (!isMobileView || !hasNextPage) {
+      return;
+    }
+
+    const target = loadMoreRef.current;
+    if (!target) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry.isIntersecting && !isFetchingNextPage) {
+          fetchNextInfinitePage();
+        }
+      },
+      { rootMargin: "200px" }
+    );
+
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [isMobileView, hasNextPage, isFetchingNextPage, fetchNextInfinitePage]);
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
@@ -464,7 +573,11 @@ export function ListingsPageClient({
           <p className="text-muted-foreground text-sm sm:text-base">
             Visar{" "}
             <span className="font-semibold text-foreground">
-              {totalCount === 0 ? 0 : `${startItem}-${endItem}`}
+              {isMobileView
+                ? listings.length
+                : totalCount === 0
+                  ? 0
+                  : `${startItem}-${endItem}`}
             </span>{" "}
             av{" "}
             <span className="font-semibold text-foreground">
@@ -534,11 +647,11 @@ export function ListingsPageClient({
         ) : (
           <div
             className={
-              typeof window !== "undefined" && window.innerWidth < 768
+              isMobileView
                 ? "flex flex-col gap-3"
                 : viewMode === "grid"
-                ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
-                : "flex flex-col gap-3 sm:gap-4"
+                  ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6"
+                  : "flex flex-col gap-3 sm:gap-4"
             }
           >
             {listings.map((listing) => (
@@ -546,16 +659,27 @@ export function ListingsPageClient({
                 key={listing.id}
                 {...listing}
                 viewMode={
-                  typeof window !== "undefined" && window.innerWidth < 768
-                    ? "list"
-                    : viewMode
+                  isMobileView ? "list" : viewMode
                 }
               />
             ))}
           </div>
         )}
 
-        {totalPages > 1 && (
+        {isMobileView && listings.length > 0 && (
+          <div
+            ref={loadMoreRef}
+            className="mt-8 flex justify-center text-sm text-muted-foreground"
+          >
+            {isFetchingNextPage
+              ? "Laddar fler annonser..."
+              : hasNextPage
+                ? "Scrolla för att ladda fler"
+                : "Du har nått slutet"}
+          </div>
+        )}
+
+        {!isMobileView && totalPages > 1 && (
           <div className="mt-12 flex justify-center">
             <div className="flex items-center gap-2">
               <Button
