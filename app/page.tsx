@@ -5,47 +5,18 @@ import { CategoryGrid } from "@/components/CategoryGrid";
 import { ListingCard } from "@/components/ListingCard";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, Shield, Clock, MessageSquare } from "lucide-react";
+import { fetchListings } from "@/lib/listings";
 
-const recentListings = [
-  {
-    id: "1",
-    title: "iPhone 14 Pro i perfekt skick",
-    price: 8500,
-    location: "Stockholm",
-    image: "https://images.unsplash.com/photo-1678652197950-794d3baec9bb?w=800&q=80",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-    condition: "used",
-  },
-  {
-    id: "2",
-    title: "Vintage soffa 3-sits",
-    price: 3500,
-    location: "Göteborg",
-    image: "https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=800&q=80",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-    condition: "used",
-  },
-  {
-    id: "3",
-    title: "Mountainbike Trek X-Caliber",
-    price: 12000,
-    location: "Malmö",
-    image: "https://images.unsplash.com/photo-1576435728678-68d0fbf94e91?w=800&q=80",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 48).toISOString(),
-    condition: "used",
-  },
-  {
-    id: "4",
-    title: "Nintendo Switch OLED + spel",
-    price: 2800,
-    location: "Uppsala",
-    image: "https://images.unsplash.com/photo-1578303512597-81e6cc155b3e?w=800&q=80",
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 72).toISOString(),
-    condition: "new",
-  },
-];
+export const revalidate = 60;
 
-export default function HomePage() {
+export default async function HomePage() {
+  const { listings: recentListings } = await fetchListings({
+    page: 1,
+    limit: 4,
+    sortBy: "latest",
+  });
+  console.log("his", recentListings);
+
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       <Header />
@@ -78,11 +49,17 @@ export default function HomePage() {
               </Link>
             </Button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {recentListings.map((listing) => (
-              <ListingCard key={listing.id} {...listing} />
-            ))}
-          </div>
+          {recentListings.length === 0 ? (
+            <p className="text-muted-foreground">
+              Inga annonser har publicerats ännu.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {recentListings.map((listing) => (
+                <ListingCard key={listing.id} {...listing} />
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="container mx-auto px-4 py-16">

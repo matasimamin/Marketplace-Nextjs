@@ -9,7 +9,9 @@ export default function CategoriesPage() {
       <main className="container mx-auto px-4 py-12">
         <div className="mb-8">
           <h1 className="text-4xl font-bold mb-2">Alla kategorier</h1>
-          <p className="text-muted-foreground">Välj en kategori för att hitta vad du söker</p>
+          <p className="text-muted-foreground">
+            Välj en kategori för att hitta vad du söker
+          </p>
         </div>
 
         <CategoryGrid />
