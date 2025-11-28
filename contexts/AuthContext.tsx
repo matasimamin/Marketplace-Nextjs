@@ -9,7 +9,13 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
-  signUp: (email: string, password: string, name: string) => Promise<{ error: any }>;
+  signUp: (params: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+  }) => Promise<{ error: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
@@ -41,23 +47,57 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, name: string) => {
+  const signUp = async ({
+    email,
+    password,
+    firstName,
+    lastName,
+    phone,
+  }: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+  }) => {
     const redirectUrl = typeof window !== "undefined" ? `${window.location.origin}/` : undefined;
-    
-    const { error } = await supabase.auth.signUp({
+    const fullName = `${firstName} ${lastName}`.trim();
+
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         ...(redirectUrl ? { emailRedirectTo: redirectUrl } : {}),
         data: {
-          name: name,
+          first_name: firstName,
+          last_name: lastName,
+          name: fullName,
+          phone: phone ?? null,
         }
       }
     });
 
-    if (error) {
+    let profileError: Error | null = null;
+
+    if (!error && data.user) {
+      const { error: upsertError } = await supabase.from("profiles").upsert(
+        {
+          id: data.user.id,
+          first_name: firstName,
+          last_name: lastName,
+          name: fullName,
+          phone: phone ?? null,
+          account_type: "private",
+        },
+        { onConflict: "id" }
+      );
+
+      profileError = upsertError ?? null;
+    }
+
+    if (error || profileError) {
       toast.error("Kunde inte skapa konto", {
-        description: error.message,
+        description: error?.message || profileError?.message || "Okänt fel",
       });
     } else {
       toast.success("Konto skapat!", {
@@ -65,7 +105,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       });
     }
 
-    return { error };
+    return { error: error || profileError };
   };
 
   const signIn = async (email: string, password: string) => {

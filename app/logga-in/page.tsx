@@ -19,7 +19,9 @@ export default function AuthPage() {
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
-  const [signupName, setSignupName] = useState("");
+  const [signupFirstName, setSignupFirstName] = useState("");
+  const [signupLastName, setSignupLastName] = useState("");
+  const [signupPhone, setSignupPhone] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
   const [signupPassword, setSignupPassword] = useState("");
 
@@ -47,7 +49,13 @@ export default function AuthPage() {
     e.preventDefault();
     setLoading(true);
 
-    const { error } = await signUp(signupEmail, signupPassword, signupName);
+    const { error } = await signUp({
+      email: signupEmail,
+      password: signupPassword,
+      firstName: signupFirstName,
+      lastName: signupLastName,
+      phone: signupPhone,
+    });
 
     if (!error) {
       const redirect = searchParams.get("redirect") || "/";
@@ -124,14 +132,40 @@ export default function AuthPage() {
 
               <TabsContent value="signup">
                 <form onSubmit={handleSignup} className="space-y-4">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <Label htmlFor="signup-first-name">Förnamn</Label>
+                      <Input
+                        id="signup-first-name"
+                        type="text"
+                        placeholder="Ex. Anna"
+                        value={signupFirstName}
+                        onChange={(e) => setSignupFirstName(e.target.value)}
+                        required
+                        className="mt-2"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="signup-last-name">Efternamn</Label>
+                      <Input
+                        id="signup-last-name"
+                        type="text"
+                        placeholder="Ex. Svensson"
+                        value={signupLastName}
+                        onChange={(e) => setSignupLastName(e.target.value)}
+                        required
+                        className="mt-2"
+                      />
+                    </div>
+                  </div>
                   <div>
-                    <Label htmlFor="signup-name">Namn</Label>
+                    <Label htmlFor="signup-phone">Telefonnummer</Label>
                     <Input
-                      id="signup-name"
-                      type="text"
-                      placeholder="Ditt namn"
-                      value={signupName}
-                      onChange={(e) => setSignupName(e.target.value)}
+                      id="signup-phone"
+                      type="tel"
+                      placeholder="070-123 45 67"
+                      value={signupPhone}
+                      onChange={(e) => setSignupPhone(e.target.value)}
                       required
                       className="mt-2"
                     />
